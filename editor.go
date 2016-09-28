@@ -51,6 +51,26 @@ func (e *Editor) Line() (string, error) {
 			if err := e.editBackspace(); err != nil {
 				return string(e.Buffer), err
 			}
+		case ctrlD:
+			if len(e.Buffer) == 0 {
+				return string(e.Buffer), io.EOF
+			}
+
+			if err := e.editDelete(); err != nil {
+				return string(e.Buffer), err
+			}
+		case ctrlT:
+			if err := e.editSwap(); err != nil {
+				return string(e.Buffer), err
+			}
+		case ctrlB:
+			if err := e.editMoveLeft(); err != nil {
+				return string(e.Buffer), err
+			}
+		case ctrlF:
+			if err := e.editMoveRight(); err != nil {
+				return string(e.Buffer), err
+			}
 		default:
 			if err := e.editInsert(r); err != nil {
 				return string(e.Buffer), err
@@ -83,6 +103,55 @@ func (e *Editor) editBackspace() error {
 	return e.refreshLine()
 }
 
+func (e *Editor) editDelete() error {
+	if e.Pos == len(e.Buffer) {
+		e.beep()
+		return nil
+	}
+
+	// Delete https://github.com/golang/go/wiki/SliceTricks
+	e.Buffer = e.Buffer[:e.Pos+copy(e.Buffer[e.Pos:], e.Buffer[e.Pos+1:])]
+
+	return e.refreshLine()
+}
+
+func (e *Editor) editSwap() error {
+	if e.Pos == 0 || e.Pos == len(e.Buffer){
+		e.beep()
+		return nil
+	}
+
+	e.Buffer[e.Pos-1], e.Buffer[e.Pos] = e.Buffer[e.Pos], e.Buffer[e.Pos-1]
+
+	if e.Pos < len(e.Buffer) {
+		e.Pos++
+	}
+
+	return e.refreshLine()
+}
+
+func (e *Editor) editMoveLeft() error {
+	if e.Pos == 0 {
+		e.beep()
+		return nil
+	}
+
+	e.Pos--
+
+	return e.refreshLine()
+}
+
+func (e *Editor) editMoveRight() error {
+	if e.Pos == len(e.Buffer) {
+		e.beep()
+		return nil
+	}
+
+	e.Pos++
+
+	return e.refreshLine()
+}
+
 func (e *Editor) editInsert(r rune) error {
 	// Insert https://github.com/golang/go/wiki/SliceTricks
 	e.Buffer = append(e.Buffer, 0)
@@ -94,26 +163,23 @@ func (e *Editor) editInsert(r rune) error {
 }
 
 const (
-	keyNull = iota
-	ctrlA
-	ctrlB
-	ctrlC
-	ctrlD
-	ctrlE
-	ctrlF
-	_
-	ctrlH
-	tab
-	_
-	ctrlK
-	ctrlL
-	enter
-	ctrlN
-	ctrlP
-	ctrlT
-	ctrlU
-	ctrlW
-	esc
+	ctrlA = 1
+	ctrlB = 2
+	ctrlC = 3
+	ctrlD = 4
+	ctrlE = 5
+	ctrlF = 6
+	ctrlH = 8
+	tab = 9
+	ctrlK = 11
+	ctrlL = 12
+	enter = 13
+	ctrlN = 14
+	ctrlP = 16
+	ctrlT = 20
+	ctrlU = 21
+	ctrlW = 23
+	esc = 27
 	backspace = 127
 )
 
