@@ -100,6 +100,79 @@ line:
 			if err := e.editDeletePrevWord(); err != nil {
 				return string(e.Buffer), err
 			}
+		case esc:
+			r, _, err := e.In.ReadRune()
+			if err != nil {
+				return string(e.Buffer), err
+			}
+
+			switch r {
+			case '[':
+				r, _, err := e.In.ReadRune()
+				if err != nil {
+					return string(e.Buffer), err
+				}
+
+				switch r {
+				case '0', '1', '2', '4', '5', '6', '7', '8', '9':
+					_, _, err := e.In.ReadRune()
+					if err != nil {
+						return string(e.Buffer), err
+					}
+				case '3':
+					r, _, err := e.In.ReadRune()
+					if err != nil {
+						return string(e.Buffer), err
+					}
+
+					switch r {
+					case '~':
+						if err := e.editDelete(); err != nil {
+							return string(e.Buffer), err
+						}
+					}
+				case 'A':
+					if err := e.editHistoryPrev(); err != nil {
+						return string(e.Buffer), err
+					}
+				case 'B':
+					if err := e.editHistoryNext(); err != nil {
+						return string(e.Buffer), err
+					}
+				case 'C':
+					if err := e.editMoveRight(); err != nil {
+						return string(e.Buffer), err
+					}
+				case 'D':
+					if err := e.editMoveLeft(); err != nil {
+						return string(e.Buffer), err
+					}
+				case 'H':
+					if err := e.editMoveHome(); err != nil {
+						return string(e.Buffer), err
+					}
+				case 'F':
+					if err := e.editMoveEnd(); err != nil {
+						return string(e.Buffer), err
+					}
+				}
+			case 'O':
+				r, _, err := e.In.ReadRune()
+				if err != nil {
+					return string(e.Buffer), err
+				}
+
+				switch r {
+				case 'H':
+					if err := e.editMoveHome(); err != nil {
+						return string(e.Buffer), err
+					}
+				case 'F':
+					if err := e.editMoveEnd(); err != nil {
+						return string(e.Buffer), err
+					}
+				}
+			}
 		default:
 			if err := e.editInsert(r); err != nil {
 				return string(e.Buffer), err
