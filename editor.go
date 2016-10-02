@@ -1,12 +1,12 @@
 package linesqueak
 
 import (
-	"bufio"
 	"errors"
 	"io"
 	"regexp"
 	"strconv"
 	"fmt"
+	"bufio"
 )
 
 type Editor struct {
@@ -330,7 +330,7 @@ var cursorPos = regexp.MustCompile("\x1B\\[(?P<cols>\\d+);(?P<rows>\\d+)R")
 // CursorPos queries the horizontal cursor position and returns it.
 // It uses the ESC [6n escape sequence.
 func (e *Editor) CursorPos() (int, error) {
-	n, err := e.Out.Write([]byte("\x1B[6n"))
+	n, err := e.Out.WriteString("\x1B[6n")
 	if err != nil {
 		return 0, err
 	}
@@ -358,7 +358,7 @@ func (e *Editor) CursorPos() (int, error) {
 }
 
 func (e *Editor) clearScreen() error {
-	n, err := e.Out.Write([]byte("\x1B[H\x1B[2J"))
+	n, err := e.Out.WriteString("\x1B[H\x1B[2J")
 	if err != nil {
 		return err
 	}
