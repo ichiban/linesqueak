@@ -99,7 +99,9 @@ func handleChannel(c ssh.NewChannel) {
 		if err != nil {
 			break
 		}
+
 		log.Printf("line: %s\n", line)
+		fmt.Fprintf(e.Out, "\ryou have typed: %s\n", line)
 	}
 }
 

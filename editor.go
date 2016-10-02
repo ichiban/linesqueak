@@ -10,28 +10,22 @@ import (
 )
 
 type Editor struct {
-	In        *bufio.Reader
-	Out       *bufio.Writer
-	Buffer    []rune
-	Prompt    string
-	MultiLine bool
-	Cols      int
-	Rows      int
-	Pos       int
-	History   []string
-	Hint      func (*Editor) *Hint
+	In         *bufio.Reader
+	Out        *bufio.Writer
+	Prompt     string
+	Buffer     []rune
+	Pos        int
+	History    []string
+	HistoryPos int
+	Hint       func (*Editor) *Hint
+	Width      func (rune) int
 }
 
 func (e *Editor) Line() (string, error) {
-	e.reset()
-
-	if _, err := e.Out.WriteString(e.Prompt); err != nil {
-		return "", err
+	if err := e.editReset(); err != nil {
+		return string(e.Buffer), err
 	}
-	if err := e.Out.Flush(); err != nil {
-		return "", err
-	}
-
+line:
 	for {
 		r, _, err := e.In.ReadRune()
 		if err == io.EOF {
@@ -43,8 +37,7 @@ func (e *Editor) Line() (string, error) {
 
 		switch r {
 		case enter:
-			err := e.refreshLine()
-			return string(e.Buffer), err
+			break line
 		case ctrlC:
 			return "", errors.New("try again")
 		case backspace, ctrlH:
@@ -71,6 +64,42 @@ func (e *Editor) Line() (string, error) {
 			if err := e.editMoveRight(); err != nil {
 				return string(e.Buffer), err
 			}
+		case ctrlP:
+			if err := e.editHistoryPrev(); err != nil {
+				return string(e.Buffer), err
+			}
+		case ctrlN:
+			if err := e.editHistoryNext(); err != nil {
+				return string(e.Buffer), err
+			}
+		case ctrlU:
+			if err := e.editReset(); err != nil {
+				return string(e.Buffer), err
+			}
+		case ctrlK:
+			if err := e.editKillForward(); err != nil {
+				return string(e.Buffer), err
+			}
+		case ctrlA:
+			if err := e.editMoveHome(); err != nil {
+				return string(e.Buffer), err
+			}
+		case ctrlE:
+			if err := e.editMoveEnd(); err != nil {
+				return string(e.Buffer), err
+			}
+		case ctrlL:
+			if err := e.clearScreen(); err != nil {
+				return string(e.Buffer), err
+			}
+
+			if err := e.refreshLine(); err != nil {
+				return string(e.Buffer), err
+			}
+		case ctrlW:
+			if err := e.editDeletePrevWord(); err != nil {
+				return string(e.Buffer), err
+			}
 		default:
 			if err := e.editInsert(r); err != nil {
 				return string(e.Buffer), err
@@ -81,12 +110,14 @@ func (e *Editor) Line() (string, error) {
 	return string(e.Buffer), nil
 }
 
-func (e *Editor) reset() {
+func (e *Editor) editReset() error {
 	if len(e.History) == 0 {
 		e.History = []string{""}
 	}
 	e.Buffer = []rune{}
 	e.Pos = 0
+
+	return e.refreshLine()
 }
 
 func (e *Editor) editBackspace() error {
@@ -152,6 +183,105 @@ func (e *Editor) editMoveRight() error {
 	return e.refreshLine()
 }
 
+func (e *Editor) editHistoryPrev() error {
+	if len(e.History) <= 0 {
+		e.beep()
+		return nil
+	}
+
+	e.History[e.HistoryPos] = string(e.Buffer)
+
+	if 0 < e.HistoryPos {
+		e.HistoryPos--
+	} else {
+		e.HistoryPos = 0
+	}
+
+	var b []rune
+	for _, r := range e.History[e.HistoryPos] {
+		b = append(b, r)
+	}
+
+	e.Buffer = b
+	e.Pos = len(e.Buffer)
+	e.refreshLine()
+
+	return nil
+}
+
+func (e *Editor) editHistoryNext() error {
+	if len(e.History) <= 0 {
+		e.beep()
+		return nil
+	}
+
+	e.History[e.HistoryPos] = string(e.Buffer)
+
+	if e.HistoryPos < len(e.History) - 1 {
+		e.HistoryPos++
+	} else {
+		e.HistoryPos = len(e.History) - 1
+	}
+
+	var b []rune
+	for _, r := range e.History[e.HistoryPos] {
+		b = append(b, r)
+	}
+
+	e.Buffer = b
+	e.Pos = len(e.Buffer)
+	e.refreshLine()
+
+	return nil
+}
+
+func (e *Editor) editKillForward() error {
+	e.Buffer = e.Buffer[:e.Pos]
+	return e.refreshLine()
+}
+
+func (e *Editor) editMoveHome() error {
+	if e.Pos == 0 {
+		e.beep()
+		return nil
+	}
+
+	e.Pos = 0
+	return e.refreshLine()
+}
+
+func (e *Editor) editMoveEnd() error {
+	if e.Pos == len(e.Buffer) {
+		e.beep()
+		return nil
+	}
+
+	e.Pos = len(e.Buffer)
+	return e.refreshLine()
+}
+
+func (e *Editor) editDeletePrevWord() error {
+	var w bool
+	var p int
+	for i := e.Pos - 1; i >= 0; i-- {
+		if e.Buffer[i] != space {
+			w = true // found a word to delete
+			continue
+		}
+
+		if !w {
+			continue
+		}
+
+		p = i + 1
+		break
+	}
+
+	e.Buffer = e.Buffer[:p]
+	e.Pos = p
+	return e.refreshLine()
+}
+
 func (e *Editor) editInsert(r rune) error {
 	// Insert https://github.com/golang/go/wiki/SliceTricks
 	e.Buffer = append(e.Buffer, 0)
@@ -180,6 +310,7 @@ const (
 	ctrlU = 21
 	ctrlW = 23
 	esc = 27
+	space = 32
 	backspace = 127
 )
 
@@ -226,8 +357,7 @@ func (e *Editor) CursorPos() (int, error) {
 	return 0, errors.New("cols not found")
 }
 
-// ClearScreen clears entire screen.
-func (e *Editor) ClearScreen() error {
+func (e *Editor) clearScreen() error {
 	n, err := e.Out.Write([]byte("\x1B[H\x1B[2J"))
 	if err != nil {
 		return err
@@ -260,15 +390,36 @@ func (e *Editor) refreshLine() error {
 
 func (e *Editor) refreshSingleLine() error {
 	ew := &errWriter{w: e.Out}
-	ew.WriteString("\r")
+	ew.WriteString("\r") // cursor to left edge
 	ew.WriteString(e.Prompt)
 	ew.WriteString(string(e.Buffer))
 	if e.Hint != nil {
 		h := e.Hint(e)
 		ew.WriteString(h.String())
 	}
-	ew.WriteString("\x1B[0K")
+	ew.WriteString("\x1B[0K") // erase to right
+	ew.WriteString(fmt.Sprintf("\r\x1B[%dC", e.width())) // move cursor to original position
 	return ew.err
+}
+
+func (e *Editor) width() int {
+	f := func (r rune) int {
+		return 1
+	}
+
+	if e.Width != nil {
+		f = e.Width
+	}
+
+	var w int
+	for _, r := range e.Prompt {
+		w += f(r)
+	}
+	for _, r := range e.Buffer[:e.Pos] {
+		w += f(r)
+	}
+
+	return w
 }
 
 type Hint struct {
