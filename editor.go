@@ -325,12 +325,12 @@ func SupportedTerm(term string) bool {
 	return true
 }
 
-var cursorPos = regexp.MustCompile("\x1B\\[(?P<cols>\\d+);(?P<rows>\\d+)R")
+var cursorPos = regexp.MustCompile("\x1b\\[(?P<cols>\\d+);(?P<rows>\\d+)R")
 
 // CursorPos queries the horizontal cursor position and returns it.
 // It uses the ESC [6n escape sequence.
 func (e *Editor) CursorPos() (int, error) {
-	n, err := e.Out.WriteString("\x1B[6n")
+	n, err := e.Out.WriteString("\x1b[6n")
 	if err != nil {
 		return 0, err
 	}
@@ -358,7 +358,7 @@ func (e *Editor) CursorPos() (int, error) {
 }
 
 func (e *Editor) clearScreen() error {
-	n, err := e.Out.WriteString("\x1B[H\x1B[2J")
+	n, err := e.Out.WriteString("\x1b[H\x1b[2J")
 	if err != nil {
 		return err
 	}
@@ -397,8 +397,8 @@ func (e *Editor) refreshSingleLine() error {
 		h := e.Hint(e)
 		ew.WriteString(h.String())
 	}
-	ew.WriteString("\x1B[0K") // erase to right
-	ew.WriteString(fmt.Sprintf("\r\x1B[%dC", e.width())) // move cursor to original position
+	ew.WriteString("\x1b[0K") // erase to right
+	ew.WriteString(fmt.Sprintf("\r\x1b[%dC", e.width())) // move cursor to original position
 	return ew.err
 }
 
@@ -430,7 +430,7 @@ type Hint struct {
 
 func (h *Hint) String() string {
 	if h.Color != nil || !h.Bold {
-		return fmt.Sprintf("\x1B[%d;%d;49m", h.Bold, *h.Color)
+		return fmt.Sprintf("\x1b[%d;%d;49m", h.Bold, *h.Color)
 	}
 	return h.Message
 }
