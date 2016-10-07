@@ -1,12 +1,13 @@
 package linesqueak
 
 import (
+	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"regexp"
 	"strconv"
-	"fmt"
-	"bufio"
+	"container/ring"
 )
 
 type Editor struct {
@@ -15,10 +16,9 @@ type Editor struct {
 	Prompt     string
 	Buffer     []rune
 	Pos        int
-	History    []string
-	HistoryPos int
-	Hint       func (*Editor) *Hint
-	Width      func (rune) int
+	History    *ring.Ring
+	Hint       func(*Editor) *Hint
+	Width      func(rune) int
 }
 
 func (e *Editor) Line() (string, error) {
@@ -28,18 +28,15 @@ func (e *Editor) Line() (string, error) {
 line:
 	for {
 		r, _, err := e.In.ReadRune()
-		if err == io.EOF {
-			break
-		}
 		if err != nil {
-			return "", err
+			return string(e.Buffer), err
 		}
 
 		switch r {
 		case enter:
 			break line
 		case ctrlC:
-			return "", errors.New("try again")
+			return string(e.Buffer), errors.New("try again")
 		case backspace, ctrlH:
 			if err := e.editBackspace(); err != nil {
 				return string(e.Buffer), err
@@ -183,9 +180,26 @@ line:
 	return string(e.Buffer), nil
 }
 
+func (e *Editor) HistoryAdd(l string) {
+	if e.History == nil {
+		e.History = ring.New(1)
+		e.History.Value = ""
+	}
+
+	// Don't add duplicate lines
+	if e.History.Prev().Value.(string) == l {
+		return
+	}
+
+	r := ring.New(1)
+	r.Value = l
+	e.History.Prev().Link(r)
+}
+
 func (e *Editor) editReset() error {
-	if len(e.History) == 0 {
-		e.History = []string{""}
+	if e.History.Len() == 0 {
+		e.History = ring.New(1)
+		e.History.Value = ""
 	}
 	e.Buffer = []rune{}
 	e.Pos = 0
@@ -220,12 +234,17 @@ func (e *Editor) editDelete() error {
 }
 
 func (e *Editor) editSwap() error {
-	if e.Pos == 0 || e.Pos == len(e.Buffer){
+	p := e.Pos
+	if p == len(e.Buffer) {
+		p = len(e.Buffer) - 1
+	}
+
+	if p == 0 {
 		e.beep()
 		return nil
 	}
 
-	e.Buffer[e.Pos-1], e.Buffer[e.Pos] = e.Buffer[e.Pos], e.Buffer[e.Pos-1]
+	e.Buffer[p-1], e.Buffer[p] = e.Buffer[p], e.Buffer[p-1]
 
 	if e.Pos < len(e.Buffer) {
 		e.Pos++
@@ -257,25 +276,14 @@ func (e *Editor) editMoveRight() error {
 }
 
 func (e *Editor) editHistoryPrev() error {
-	if len(e.History) <= 0 {
+	if e.History.Len() == 0 {
 		e.beep()
 		return nil
 	}
 
-	e.History[e.HistoryPos] = string(e.Buffer)
-
-	if 0 < e.HistoryPos {
-		e.HistoryPos--
-	} else {
-		e.HistoryPos = 0
-	}
-
-	var b []rune
-	for _, r := range e.History[e.HistoryPos] {
-		b = append(b, r)
-	}
-
-	e.Buffer = b
+	e.History.Value = string(e.Buffer)
+	e.History = e.History.Prev()
+	e.Buffer = []rune(e.History.Value.(string))
 	e.Pos = len(e.Buffer)
 	e.refreshLine()
 
@@ -283,25 +291,14 @@ func (e *Editor) editHistoryPrev() error {
 }
 
 func (e *Editor) editHistoryNext() error {
-	if len(e.History) <= 0 {
+	if e.History.Len() == 0 {
 		e.beep()
 		return nil
 	}
 
-	e.History[e.HistoryPos] = string(e.Buffer)
-
-	if e.HistoryPos < len(e.History) - 1 {
-		e.HistoryPos++
-	} else {
-		e.HistoryPos = len(e.History) - 1
-	}
-
-	var b []rune
-	for _, r := range e.History[e.HistoryPos] {
-		b = append(b, r)
-	}
-
-	e.Buffer = b
+	e.History.Value = string(e.Buffer)
+	e.History = e.History.Next()
+	e.Buffer = []rune(e.History.Value.(string))
 	e.Pos = len(e.Buffer)
 	e.refreshLine()
 
@@ -366,24 +363,24 @@ func (e *Editor) editInsert(r rune) error {
 }
 
 const (
-	ctrlA = 1
-	ctrlB = 2
-	ctrlC = 3
-	ctrlD = 4
-	ctrlE = 5
-	ctrlF = 6
-	ctrlH = 8
-	tab = 9
-	ctrlK = 11
-	ctrlL = 12
-	enter = 13
-	ctrlN = 14
-	ctrlP = 16
-	ctrlT = 20
-	ctrlU = 21
-	ctrlW = 23
-	esc = 27
-	space = 32
+	ctrlA     = 1
+	ctrlB     = 2
+	ctrlC     = 3
+	ctrlD     = 4
+	ctrlE     = 5
+	ctrlF     = 6
+	ctrlH     = 8
+	tab       = 9
+	ctrlK     = 11
+	ctrlL     = 12
+	enter     = 13
+	ctrlN     = 14
+	ctrlP     = 16
+	ctrlT     = 20
+	ctrlU     = 21
+	ctrlW     = 23
+	esc       = 27
+	space     = 32
 	backspace = 127
 )
 
@@ -470,13 +467,13 @@ func (e *Editor) refreshSingleLine() error {
 		h := e.Hint(e)
 		ew.WriteString(h.String())
 	}
-	ew.WriteString("\x1b[0K") // erase to right
+	ew.WriteString("\x1b[0K")                            // erase to right
 	ew.WriteString(fmt.Sprintf("\r\x1b[%dC", e.width())) // move cursor to original position
 	return ew.err
 }
 
 func (e *Editor) width() int {
-	f := func (r rune) int {
+	f := func(r rune) int {
 		return 1
 	}
 
@@ -497,8 +494,8 @@ func (e *Editor) width() int {
 
 type Hint struct {
 	Message string
-	Color *BGColor
-	Bold bool
+	Color   *BGColor
+	Bold    bool
 }
 
 func (h *Hint) String() string {
@@ -511,28 +508,28 @@ func (h *Hint) String() string {
 type BGColor byte
 
 const (
-	BGDefault = 49
-	BGBlack = 40
-	BGRed = 41
-	BGGreen = 42
-	BGYellow = 43
-	BGBlue = 44
-	BGMagenta = 45
-	BGCyan = 46
-	BGLightGray = 47
-	BGDarkGray = 100
-	BGLightRed =  101
-	BGLightGreen = 102
-	BGLightYellow = 103
-	BGLightBlue = 104
+	BGDefault      = 49
+	BGBlack        = 40
+	BGRed          = 41
+	BGGreen        = 42
+	BGYellow       = 43
+	BGBlue         = 44
+	BGMagenta      = 45
+	BGCyan         = 46
+	BGLightGray    = 47
+	BGDarkGray     = 100
+	BGLightRed     = 101
+	BGLightGreen   = 102
+	BGLightYellow  = 103
+	BGLightBlue    = 104
 	BGLightMagenta = 105
-	BGLightCyan = 106
-	BGWhite = 107
+	BGLightCyan    = 106
+	BGWhite        = 107
 )
 
 // https://blog.golang.org/errors-are-values
 type errWriter struct {
-	w *bufio.Writer
+	w   *bufio.Writer
 	err error
 }
 

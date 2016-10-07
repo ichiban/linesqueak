@@ -1,16 +1,16 @@
 package main
 
 import (
-	"fmt"
 	"encoding/binary"
+	"fmt"
 	"golang.org/x/crypto/ssh"
 	"io/ioutil"
-	"os/exec"
 	"log"
 	"net"
+	"os/exec"
 
-	"github.com/ichiban/linesqueak"
 	"bufio"
+	"github.com/ichiban/linesqueak"
 )
 
 func main() {
@@ -78,7 +78,7 @@ func handleChannel(c ssh.NewChannel) {
 				log.Printf("(w, h) = (%d, %d)", w, h)
 				req.Reply(true, nil)
 			case "shell":
-				if (linesqueak.SupportedTerm(string(req.Payload))) {
+				if linesqueak.SupportedTerm(string(req.Payload)) {
 					req.Reply(true, nil)
 				}
 			case "exec":
@@ -90,8 +90,8 @@ func handleChannel(c ssh.NewChannel) {
 	}()
 
 	e := &linesqueak.Editor{
-		In: bufio.NewReader(conn),
-		Out: bufio.NewWriter(conn),
+		In:     bufio.NewReader(conn),
+		Out:    bufio.NewWriter(conn),
 		Prompt: "> ",
 	}
 	for {
@@ -131,4 +131,3 @@ func serverPrivateKeyBytes() ([]byte, error) {
 
 	return ioutil.ReadFile("example.rsa")
 }
-
