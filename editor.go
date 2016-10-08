@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"regexp"
-	"strconv"
 	"container/ring"
 )
 
@@ -393,38 +391,6 @@ func SupportedTerm(term string) bool {
 		}
 	}
 	return true
-}
-
-var cursorPos = regexp.MustCompile("\x1b\\[(?P<cols>\\d+);(?P<rows>\\d+)R")
-
-// CursorPos queries the horizontal cursor position and returns it.
-// It uses the ESC [6n escape sequence.
-func (e *Editor) CursorPos() (int, error) {
-	n, err := e.Out.WriteString("\x1b[6n")
-	if err != nil {
-		return 0, err
-	}
-	if n != 4 {
-		return n, errors.New("failed to query cursor position")
-	}
-
-	buf := make([]byte, 32)
-	_, err = e.In.Read(buf)
-	if err != nil {
-		return 0, err
-	}
-
-	match := cursorPos.FindStringSubmatch(string(buf))
-	if match == nil {
-		return 0, errors.New("invalid response")
-	}
-	for i, name := range cursorPos.SubexpNames() {
-		if name == "cols" {
-			cols := match[i]
-			return strconv.Atoi(cols)
-		}
-	}
-	return 0, errors.New("cols not found")
 }
 
 func (e *Editor) clearScreen() error {
