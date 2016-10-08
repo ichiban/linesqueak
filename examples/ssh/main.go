@@ -102,6 +102,8 @@ func handleChannel(c ssh.NewChannel) {
 
 		log.Printf("line: %s\n", line)
 		fmt.Fprintf(e.Out, "\ryou have typed: %s\n", line)
+
+		e.HistoryAdd(line)
 	}
 }
 

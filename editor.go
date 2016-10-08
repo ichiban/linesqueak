@@ -187,7 +187,7 @@ func (e *Editor) HistoryAdd(l string) {
 	}
 
 	// Don't add duplicate lines
-	if e.History.Prev().Value.(string) == l {
+	if e.History.Value.(string) == l {
 		return
 	}
 
