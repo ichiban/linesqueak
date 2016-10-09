@@ -1,15 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"encoding/binary"
 	"fmt"
-	"golang.org/x/crypto/ssh"
 	"io/ioutil"
 	"log"
 	"net"
 	"os/exec"
 
-	"bufio"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/ichiban/linesqueak"
 )
 
@@ -100,6 +101,22 @@ func handleChannel(c ssh.NewChannel) {
 				"Completion #3",
 			}
 		},
+		Hint: func(s string) *linesqueak.Hint {
+			if s == "foo " {
+				return &linesqueak.Hint{
+					Message: "bar baz",
+				}
+			}
+
+			if s == "foo bar " {
+				return &linesqueak.Hint{
+					Message: "baz",
+					Bold:    true,
+				}
+			}
+
+			return nil
+		},
 	}
 	for {
 		line, err := e.Line()
@@ -123,7 +140,6 @@ func parseDims(b []byte) (uint32, uint32) {
 func serverPrivateKey() (ssh.Signer, error) {
 	b, err := serverPrivateKeyBytes()
 	if err != nil {
-		log.Print("here!!!\n")
 		return nil, err
 	}
 	return ssh.ParsePrivateKey(b)

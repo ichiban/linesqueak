@@ -16,7 +16,7 @@ type Editor struct {
 	Pos      int
 	History  *ring.Ring
 	Complete func(s string) []string
-	Hint     func(*Editor) *Hint
+	Hint     func(s string) *Hint
 	Width    func(rune) int
 }
 
@@ -504,10 +504,7 @@ func (e *Editor) refreshSingleLine() error {
 	ew.WriteString("\r") // cursor to left edge
 	ew.WriteString(e.Prompt)
 	ew.WriteString(string(e.Buffer))
-	if e.Hint != nil {
-		h := e.Hint(e)
-		ew.WriteString(h.String())
-	}
+	ew.WriteString(e.hint())
 	ew.WriteString("\x1b[0K")                            // erase to right
 	ew.WriteString(fmt.Sprintf("\r\x1b[%dC", e.width())) // move cursor to original position
 	return ew.err
@@ -535,37 +532,58 @@ func (e *Editor) width() int {
 
 type Hint struct {
 	Message string
-	Color   *BGColor
+	Color   Color
 	Bold    bool
 }
 
-func (h *Hint) String() string {
-	if h.Color != nil || !h.Bold {
-		return fmt.Sprintf("\x1b[%d;%d;49m", h.Bold, *h.Color)
+func (e *Editor) hint() string {
+	if e.Hint == nil {
+		return ""
 	}
+
+	h := e.Hint(string(e.Buffer))
+
+	if h == nil {
+		return ""
+	}
+
+	if h.Color == 0 {
+		h.Color = Gray
+	}
+
+	var b int
+	if h.Bold {
+		b = 1
+	}
+
+	if h.Color != 0 || !h.Bold {
+		return fmt.Sprintf("\x1b[%d;%d;49m%s\x1b[0m", b, h.Color, h.Message)
+	}
+
 	return h.Message
 }
 
-type BGColor byte
+type Color byte
 
 const (
-	BGDefault      = 49
-	BGBlack        = 40
-	BGRed          = 41
-	BGGreen        = 42
-	BGYellow       = 43
-	BGBlue         = 44
-	BGMagenta      = 45
-	BGCyan         = 46
-	BGLightGray    = 47
-	BGDarkGray     = 100
-	BGLightRed     = 101
-	BGLightGreen   = 102
-	BGLightYellow  = 103
-	BGLightBlue    = 104
-	BGLightMagenta = 105
-	BGLightCyan    = 106
-	BGWhite        = 107
+	Gray         = 37
+	Default      = 49
+	Black        = 40
+	Red          = 41
+	Green        = 42
+	Yellow       = 43
+	Blue         = 44
+	Magenta      = 45
+	Cyan         = 46
+	LightGray    = 47
+	DarkGray     = 100
+	LightRed     = 101
+	LightGreen   = 102
+	LightYellow  = 103
+	LightBlue    = 104
+	LightMagenta = 105
+	LightCyan    = 106
+	White        = 107
 )
 
 // https://blog.golang.org/errors-are-values

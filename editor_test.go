@@ -761,6 +761,45 @@ func TestEditor_LineTabSomeCompletions(t *testing.T) {
 	}
 }
 
+func TestEditor_LineHint(t *testing.T) {
+	in := bytes.NewBuffer([]byte("foo bar\x0d"))
+	out := &checkedWriter{
+		expectations: []string{
+			"\r> \x1b[0K\r\x1b[2C",
+			"\r> f\x1b[0K\r\x1b[3C",
+			"\r> fo\x1b[0K\r\x1b[4C",
+			"\r> foo\x1b[0K\r\x1b[5C",
+			"\r> foo \x1b[0;37;49mbar\x1b[0m\x1b[0K\r\x1b[6C",
+			"\r> foo b\x1b[0K\r\x1b[7C",
+			"\r> foo ba\x1b[0K\r\x1b[8C",
+			"\r> foo bar\x1b[0K\r\x1b[9C",
+		},
+	}
+
+	e := &linesqueak.Editor{
+		In:     bufio.NewReader(in),
+		Out:    bufio.NewWriter(out),
+		Prompt: "> ",
+		Hint: func(s string) *linesqueak.Hint {
+			if s == "foo " {
+				return &linesqueak.Hint{
+					Message: "bar",
+				}
+			}
+
+			return nil
+		},
+	}
+
+	l, err := e.Line()
+	if err != nil {
+		t.Error(err)
+	}
+	if l != "foo bar" {
+		t.Errorf(`expected "foo bar" got %#v`, l)
+	}
+}
+
 type checkedWriter struct {
 	expectations []string
 	pos          int
