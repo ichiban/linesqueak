@@ -3,16 +3,15 @@ package linesqueak_test
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"github.com/ichiban/linesqueak"
 	"io"
 	"testing"
 )
 
 func TestEditor_LineEnter(t *testing.T) {
-	// enter
 	in := bytes.NewBuffer([]byte("foo bar\x0d"))
 	out := &checkedWriter{
-		t: t,
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> f\x1b[0K\r\x1b[3C",
@@ -43,7 +42,6 @@ func TestEditor_LineEnter(t *testing.T) {
 func TestEditor_LineCtrlC(t *testing.T) {
 	in := bytes.NewBuffer([]byte("foo b\x03"))
 	out := &checkedWriter{
-		t: t,
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> f\x1b[0K\r\x1b[3C",
@@ -72,7 +70,6 @@ func TestEditor_LineCtrlC(t *testing.T) {
 func TestEditor_LineBackspace(t *testing.T) {
 	in := bytes.NewBuffer([]byte("fooo\x7f bar\x0d"))
 	out := &checkedWriter{
-		t: t,
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> f\x1b[0K\r\x1b[3C",
@@ -103,10 +100,8 @@ func TestEditor_LineBackspace(t *testing.T) {
 }
 
 func TestEditor_LineCtrlH(t *testing.T) {
-	// Ctrl-h
 	in := bytes.NewBuffer([]byte("fooo\x08 bar\x0d"))
 	out := &checkedWriter{
-		t: t,
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> f\x1b[0K\r\x1b[3C",
@@ -140,7 +135,6 @@ func TestEditor_LineCtrlD(t *testing.T) {
 	{ // with empty buffer
 		in := bytes.NewBuffer([]byte("\x04"))
 		out := &checkedWriter{
-			t: t,
 			expectations: []string{
 				"\r> \x1b[0K\r\x1b[2C",
 			},
@@ -164,7 +158,6 @@ func TestEditor_LineCtrlD(t *testing.T) {
 	{ // with non-empty buffer
 		in := bytes.NewBuffer([]byte("fooo\x02\x04 bar\x0d"))
 		out := &checkedWriter{
-			t: t,
 			expectations: []string{
 				"\r> \x1b[0K\r\x1b[2C",
 				"\r> f\x1b[0K\r\x1b[3C",
@@ -199,7 +192,6 @@ func TestEditor_LineCtrlD(t *testing.T) {
 func TestEditor_LineCtrlT(t *testing.T) {
 	in := bytes.NewBuffer([]byte("fo obra\x14\x02\x02\x02\x02\x14\x0d"))
 	out := &checkedWriter{
-		t: t,
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> f\x1b[0K\r\x1b[3C",
@@ -233,10 +225,9 @@ func TestEditor_LineCtrlT(t *testing.T) {
 	}
 }
 
-func TestEditor_LineCtrlBCtrlF(t *testing.T){
+func TestEditor_LineCtrlBCtrlF(t *testing.T) {
 	in := bytes.NewBuffer([]byte("foo bar\x02\x02\x02\x02\x02\x02\x02\x02\x06\x06\x06\x06\x06\x06\x06\x0d"))
 	out := &checkedWriter{
-		t: t,
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> f\x1b[0K\r\x1b[3C",
@@ -283,7 +274,6 @@ func TestEditor_LineCtrlBCtrlF(t *testing.T){
 func TestEditor_LineCtrlPCtrlN(t *testing.T) {
 	in := bytes.NewBuffer([]byte("\x10foo\x0d\x10\x10\x0e\x0ebar\x0d"))
 	out := &checkedWriter{
-		t: t,
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> \x1b[0K\r\x1b[2C",
@@ -329,7 +319,6 @@ func TestEditor_LineCtrlPCtrlN(t *testing.T) {
 func TestEditor_LineCtrlU(t *testing.T) {
 	in := bytes.NewBuffer([]byte("foo bar\x15\x0d"))
 	out := &checkedWriter{
-		t: t,
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> f\x1b[0K\r\x1b[3C",
@@ -361,7 +350,6 @@ func TestEditor_LineCtrlU(t *testing.T) {
 func TestEditor_LineCtrlK(t *testing.T) {
 	in := bytes.NewBuffer([]byte("foo bar\x02\x02\x0b\x0d"))
 	out := &checkedWriter{
-		t: t,
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> f\x1b[0K\r\x1b[3C",
@@ -395,7 +383,6 @@ func TestEditor_LineCtrlK(t *testing.T) {
 func TestEditor_LineCtrlACtrlE(t *testing.T) {
 	in := bytes.NewBuffer([]byte("foo bar\x01\x05\x0d"))
 	out := &checkedWriter{
-		t: t,
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> f\x1b[0K\r\x1b[3C",
@@ -428,7 +415,6 @@ func TestEditor_LineCtrlACtrlE(t *testing.T) {
 func TestEditor_LineCtrlL(t *testing.T) {
 	in := bytes.NewBuffer([]byte("foo bar\x0c\x0d"))
 	out := &checkedWriter{
-		t: t,
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> f\x1b[0K\r\x1b[3C",
@@ -460,7 +446,6 @@ func TestEditor_LineCtrlL(t *testing.T) {
 func TestEditor_LineCtrlW(t *testing.T) {
 	in := bytes.NewBuffer([]byte("foo  bar \x17\x17\x0d"))
 	out := &checkedWriter{
-		t: t,
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> f\x1b[0K\r\x1b[3C",
@@ -495,7 +480,6 @@ func TestEditor_LineCtrlW(t *testing.T) {
 func TestEditor_LineEscSquareBracket3Tilda(t *testing.T) {
 	in := bytes.NewBuffer([]byte("abc\x02\x02\x1b[3~\x0d"))
 	out := &checkedWriter{
-		t: t,
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> a\x1b[0K\r\x1b[3C",
@@ -525,7 +509,6 @@ func TestEditor_LineEscSquareBracket3Tilda(t *testing.T) {
 func TestEditor_LineEscSquareBracketAEscSquareBracketB(t *testing.T) {
 	in := bytes.NewBuffer([]byte("\x1b[Afoo\x0d\x1b[A\x1b[A\x1b[B\x1b[Bbar\x0d"))
 	out := &checkedWriter{
-		t: t,
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> \x1b[0K\r\x1b[2C",
@@ -571,7 +554,6 @@ func TestEditor_LineEscSquareBracketAEscSquareBracketB(t *testing.T) {
 func TestEditor_LineEscSquareBracketCEscSquareBracketD(t *testing.T) {
 	in := bytes.NewBuffer([]byte("foo bar\x1b[D\x1b[D\x1b[D\x1b[D\x1b[D\x1b[D\x1b[D\x1b[D\x1b[C\x1b[C\x1b[C\x1b[C\x1b[C\x1b[C\x1b[C\x0d"))
 	out := &checkedWriter{
-		t: t,
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> f\x1b[0K\r\x1b[3C",
@@ -618,7 +600,6 @@ func TestEditor_LineEscSquareBracketCEscSquareBracketD(t *testing.T) {
 func TestEditor_LineEscSquareBracketHEscSquareBracketF(t *testing.T) {
 	in := bytes.NewBuffer([]byte("foo bar\x1b[H\x1b[F\x0d"))
 	out := &checkedWriter{
-		t: t,
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> f\x1b[0K\r\x1b[3C",
@@ -651,7 +632,6 @@ func TestEditor_LineEscSquareBracketHEscSquareBracketF(t *testing.T) {
 func TestEditor_LineEscOHEscOF(t *testing.T) {
 	in := bytes.NewBuffer([]byte("foo bar\x1bOH\x1bOF\x0d"))
 	out := &checkedWriter{
-		t: t,
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> f\x1b[0K\r\x1b[3C",
@@ -681,8 +661,107 @@ func TestEditor_LineEscOHEscOF(t *testing.T) {
 	}
 }
 
+func TestEditor_LineTabNoCompleteFunc(t *testing.T) {
+	in := bytes.NewBuffer([]byte("foo\t\x0d"))
+	out := &checkedWriter{
+		expectations: []string{
+			"\r> \x1b[0K\r\x1b[2C",
+			"\r> f\x1b[0K\r\x1b[3C",
+			"\r> fo\x1b[0K\r\x1b[4C",
+			"\r> foo\x1b[0K\r\x1b[5C",
+			"\r> foo\t\x1b[0K\r\x1b[6C",
+		},
+	}
+
+	e := &linesqueak.Editor{
+		In:     bufio.NewReader(in),
+		Out:    bufio.NewWriter(out),
+		Prompt: "> ",
+	}
+
+	l, err := e.Line()
+	if err != nil {
+		t.Error(err)
+	}
+	if l != "foo\t" {
+		t.Errorf(`expected "foo\t" got %#v`, l)
+	}
+}
+
+func TestEditor_LineTabNoCompletionAvailable(t *testing.T) {
+	in := bytes.NewBuffer([]byte("foo\t\x0d"))
+	out := &checkedWriter{
+		expectations: []string{
+			"\r> \x1b[0K\r\x1b[2C",
+			"\r> f\x1b[0K\r\x1b[3C",
+			"\r> fo\x1b[0K\r\x1b[4C",
+			"\r> foo\x1b[0K\r\x1b[5C",
+			"\a",
+			"\r> foo\x1b[0K\r\x1b[5C",
+		},
+	}
+
+	e := &linesqueak.Editor{
+		In:     bufio.NewReader(in),
+		Out:    bufio.NewWriter(out),
+		Prompt: "> ",
+		Complete: func(s string) []string {
+			if s != "foo" {
+				t.Errorf(`expected "foo" got %#v`, s)
+			}
+			return []string{}
+		},
+	}
+
+	l, err := e.Line()
+	if err != nil {
+		t.Error(err)
+	}
+	if l != "foo" {
+		t.Errorf(`expected "foo" got %#v`, l)
+	}
+}
+
+func TestEditor_LineTabSomeCompletions(t *testing.T) {
+	in := bytes.NewBuffer([]byte("foo\t\t\t\t\x0d"))
+	out := &checkedWriter{
+		expectations: []string{
+			"\r> \x1b[0K\r\x1b[2C",
+			"\r> f\x1b[0K\r\x1b[3C",
+			"\r> fo\x1b[0K\r\x1b[4C",
+			"\r> foo\x1b[0K\r\x1b[5C",
+			"\r> foo bar\x1b[0K\r\x1b[9C",
+			"\r> foo bar baz\x1b[0K\r\x1b[13C",
+			"\r> foo\x1b[0K\r\x1b[5C",
+			"\r> foo bar\x1b[0K\r\x1b[9C",
+		},
+	}
+
+	e := &linesqueak.Editor{
+		In:     bufio.NewReader(in),
+		Out:    bufio.NewWriter(out),
+		Prompt: "> ",
+		Complete: func(s string) []string {
+			if s != "foo" {
+				t.Errorf(`expected "foo" got %#v`, s)
+			}
+			return []string{
+				"foo bar",
+				"foo bar baz",
+			}
+		},
+	}
+
+	l, err := e.Line()
+	if err != nil {
+		t.Error(err)
+	}
+	if l != "foo bar" {
+		t.Errorf(`expected "foo bar" got %#v`, l)
+	}
+}
+
 type checkedWriter struct {
-	t            *testing.T
 	expectations []string
 	pos          int
 }
@@ -690,12 +769,11 @@ type checkedWriter struct {
 var _ io.Writer = (*checkedWriter)(nil)
 
 func (c *checkedWriter) Write(p []byte) (int, error) {
-	t := c.t
 	e := c.expectations[c.pos]
 	a := string(p)
 
 	if e != a {
-		t.Errorf(`expected %#v got %#v`, e, a)
+		return 0, fmt.Errorf(`expected %#v got %#v`, e, a)
 	}
 
 	c.pos++

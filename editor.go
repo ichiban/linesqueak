@@ -2,21 +2,22 @@ package linesqueak
 
 import (
 	"bufio"
+	"container/ring"
 	"errors"
 	"fmt"
 	"io"
-	"container/ring"
 )
 
 type Editor struct {
-	In         *bufio.Reader
-	Out        *bufio.Writer
-	Prompt     string
-	Buffer     []rune
-	Pos        int
-	History    *ring.Ring
-	Hint       func(*Editor) *Hint
-	Width      func(rune) int
+	In       *bufio.Reader
+	Out      *bufio.Writer
+	Prompt   string
+	Buffer   []rune
+	Pos      int
+	History  *ring.Ring
+	Complete func(s string) []string
+	Hint     func(*Editor) *Hint
+	Width    func(rune) int
 }
 
 func (e *Editor) Line() (string, error) {
@@ -167,6 +168,10 @@ line:
 						return string(e.Buffer), err
 					}
 				}
+			}
+		case tab:
+			if err := e.completeLine(); err != nil {
+				return string(e.Buffer), err
 			}
 		default:
 			if err := e.editInsert(r); err != nil {
@@ -360,6 +365,63 @@ func (e *Editor) editInsert(r rune) error {
 	return e.refreshLine()
 }
 
+func (e *Editor) completeLine() error {
+	if e.Complete == nil {
+		return e.editInsert(tab)
+	}
+
+	opts := e.Complete(string(e.Buffer))
+
+	if len(opts) == 0 {
+		e.beep()
+		return nil
+	}
+
+	cs := ring.New(len(opts) + 1)
+	for _, o := range opts {
+		cs.Value = o
+		cs = cs.Next()
+	}
+	cs.Value = string(e.Buffer)
+	cs = cs.Next()
+
+complete:
+	for {
+		c := cs.Value.(string)
+
+		if err := e.refreshLineString(c); err != nil {
+			return err
+		}
+
+		b, err := e.In.Peek(1)
+		if err != nil {
+			return err
+		}
+
+		switch b[0] {
+		case tab:
+			if _, _, err := e.In.ReadRune(); err != nil {
+				return err
+			}
+			cs = cs.Next()
+		case esc:
+			if _, _, err := e.In.ReadRune(); err != nil {
+				return err
+			}
+			if err := e.refreshLine(); err != nil {
+				return err
+			}
+			break complete
+		default:
+			e.Buffer = []rune(c)
+			e.Pos = len(e.Buffer)
+			break complete
+		}
+	}
+
+	return nil
+}
+
 const (
 	ctrlA     = 1
 	ctrlB     = 2
@@ -421,6 +483,19 @@ func (e *Editor) refreshLine() error {
 	if err := e.Out.Flush(); err != nil {
 		return err
 	}
+	return nil
+}
+
+func (e *Editor) refreshLineString(s string) error {
+	b := e.Buffer
+	p := e.Pos
+	e.Buffer = []rune(s)
+	e.Pos = len(e.Buffer)
+	if err := e.refreshLine(); err != nil {
+		return err
+	}
+	e.Buffer = b
+	e.Pos = p
 	return nil
 }
 

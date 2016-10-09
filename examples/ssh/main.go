@@ -93,6 +93,13 @@ func handleChannel(c ssh.NewChannel) {
 		In:     bufio.NewReader(conn),
 		Out:    bufio.NewWriter(conn),
 		Prompt: "> ",
+		Complete: func(_ string) []string {
+			return []string{
+				"Completion #1",
+				"Completion #2",
+				"Completion #3",
+			}
+		},
 	}
 	for {
 		line, err := e.Line()
