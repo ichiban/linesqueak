@@ -13,7 +13,7 @@ It is inspired by [Linenoise](https://github.com/antirez/linenoise).
 - [x] Standard Key Bindings
 - [x] History
 - [x] Completion
-- [ ] Hints
+- [x] Hints
  
 # Similar Projects
 
