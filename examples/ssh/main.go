@@ -70,26 +70,6 @@ func handleChannel(c ssh.NewChannel) {
 	}
 	defer conn.Close()
 
-	go func() {
-		for req := range reqs {
-			switch req.Type {
-			case "pty-req":
-				termLen := req.Payload[3]
-				w, h := parseDims(req.Payload[termLen+4:])
-				log.Printf("(w, h) = (%d, %d)", w, h)
-				req.Reply(true, nil)
-			case "shell":
-				if linesqueak.SupportedTerm(string(req.Payload)) {
-					req.Reply(true, nil)
-				}
-			case "exec":
-				log.Printf("exec: %s", req.Payload)
-			default:
-				log.Printf("unknown req type: %s", req.Type)
-			}
-		}
-	}()
-
 	e := &linesqueak.Editor{
 		In:     bufio.NewReader(conn),
 		Out:    bufio.NewWriter(conn),
@@ -118,6 +98,28 @@ func handleChannel(c ssh.NewChannel) {
 			return nil
 		},
 	}
+
+	go func() {
+		for req := range reqs {
+			switch req.Type {
+			case "pty-req":
+				termLen := req.Payload[3]
+				w, h := parseDims(req.Payload[termLen+4:])
+				e.Rows = h
+				e.Cols = w
+				req.Reply(true, nil)
+			case "shell":
+				if linesqueak.SupportedTerm(string(req.Payload)) {
+					req.Reply(true, nil)
+				}
+			case "exec":
+				log.Printf("exec: %s", req.Payload)
+			default:
+				log.Printf("unknown req type: %s", req.Type)
+			}
+		}
+	}()
+
 	for {
 		line, err := e.Line()
 		if err != nil {
@@ -131,9 +133,9 @@ func handleChannel(c ssh.NewChannel) {
 	}
 }
 
-func parseDims(b []byte) (uint32, uint32) {
-	w := binary.BigEndian.Uint32(b)
-	h := binary.BigEndian.Uint32(b[4:])
+func parseDims(b []byte) (int, int) {
+	w := int(binary.BigEndian.Uint32(b))
+	h := int(binary.BigEndian.Uint32(b[4:]))
 	return w, h
 }
 

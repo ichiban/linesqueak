@@ -1,3 +1,4 @@
+// Package linesqueak provides readline-like line editing functionality over io.Reader & io.Writer.
 package linesqueak
 
 import (
@@ -6,20 +7,59 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
+	"strconv"
 )
 
+// Editor interacts with VT100 like terminals via io.Reader & io.Writer and displays an input line.
 type Editor struct {
-	In       *bufio.Reader
-	Out      *bufio.Writer
-	Prompt   string
-	Buffer   []rune
-	Pos      int
-	History  *ring.Ring
+	// In reads key strokes from the terminal.
+	// It's required to be raw mode i.e. send data as frequently as possible
+	// instead of cooked mode i.e. buffer it until it reaches a meaningful chunk (= line).
+	In *bufio.Reader
+
+	// Out displays current editor states to the terminal.
+	Out *bufio.Writer
+
+	// Prompt is prepended to each editor state on the terminal.
+	// Prompt is not part of user inputs but part of UI. so it doesn't appear in result input lines.
+	Prompt string
+
+	// Buffer keeps the current user input.
+	Buffer []rune
+
+	// Pos points the current cursor position in Buffer.
+	Pos int
+
+	// Cols is the terminal width.
+	// If it's not provided, Editor assumes it's 80.
+	Cols int
+
+	// Rows is the terminal height.
+	// If it's not provided, Editor assumes it's 24.
+	Rows int
+
+	// History holds previous input lines so that user can reuse or tweak it later.
+	// It is your task to add lines to History, save History, or load it from disks.
+	History *ring.Ring
+
+	// Complete will be called when user wants you to complete their inputs.
+	// It takes the current user input and returns some completion suggestions.
+	// Complete is OPTIONAL. If no Complete is provided, completion will be disabled.
 	Complete func(s string) []string
-	Hint     func(s string) *Hint
-	Width    func(rune) int
+
+	// Hint will be called while user is typing and displayed on the right of the user input.
+	// Hint is OPTIONAL. If no Hint is provided, no hint will be shown.
+	Hint func(s string) *Hint
+
+	// Width calculates character width on the terminal.
+	// A lot of CJK characters and emojis are twice as wide as ASCII characters.
+	// Width is OPTIONAL. By default,
+	// it calculates the character width as 1 for all characters except tab which width is 4.
+	Width func(rune) int
 }
 
+// Line reads user key strokes and returns a confirmed input line while displaying editor states on the terminal.
 func (e *Editor) Line() (string, error) {
 	if err := e.editReset(); err != nil {
 		return string(e.Buffer), err
@@ -183,6 +223,7 @@ line:
 	return string(e.Buffer), nil
 }
 
+// HistoryAdd adds a line to History.
 func (e *Editor) HistoryAdd(l string) {
 	if e.History == nil {
 		e.History = ring.New(1)
@@ -199,6 +240,44 @@ func (e *Editor) HistoryAdd(l string) {
 	e.History.Prev().Link(r)
 }
 
+var dimPattern = regexp.MustCompile("\x1b\\[(\\d+);(\\d+)R")
+
+// AdjustDimensions queries the terminal about rows and cols and updates Editor's Rows and Cols.
+func (e *Editor) AdjustDimensions() error {
+	// https://groups.google.com/forum/#!topic/comp.os.vms/bDKSY6nG13k
+	if _, err := e.Out.WriteString("\x1b7\x1b[999;999H\x1b[6n"); err != nil {
+		return err
+	}
+
+	if err := e.Out.Flush(); err != nil {
+		return err
+	}
+
+	res, err := e.In.ReadString('R')
+	if err != nil {
+		return err
+	}
+
+	ms := dimPattern.FindStringSubmatch(res)
+	r, err := strconv.Atoi(ms[1])
+	if err != nil {
+		return err
+	}
+	c, err := strconv.Atoi(ms[2])
+	if err != nil {
+		return err
+	}
+
+	if _, err := e.Out.WriteString("\x1b8"); err != nil {
+		return err
+	}
+
+	e.Cols = c
+	e.Rows = r
+
+	return nil
+}
+
 func (e *Editor) editReset() error {
 	if e.History.Len() == 0 {
 		e.History = ring.New(1)
@@ -206,6 +285,14 @@ func (e *Editor) editReset() error {
 	}
 	e.Buffer = []rune{}
 	e.Pos = 0
+
+	if e.Rows == 0 {
+		e.Rows = 24
+	}
+
+	if e.Cols == 0 {
+		e.Cols = 80
+	}
 
 	return e.refreshLine()
 }
@@ -501,17 +588,21 @@ func (e *Editor) refreshLineString(s string) error {
 
 func (e *Editor) refreshSingleLine() error {
 	ew := &errWriter{w: e.Out}
-	ew.WriteString("\r") // cursor to left edge
-	ew.WriteString(e.Prompt)
-	ew.WriteString(string(e.Buffer))
-	ew.WriteString(e.hint())
-	ew.WriteString("\x1b[0K")                            // erase to right
-	ew.WriteString(fmt.Sprintf("\r\x1b[%dC", e.width())) // move cursor to original position
+	ew.writeString("\r") // cursor to left edge
+	ew.writeString(e.Prompt)
+	ew.writeString(string(e.Buffer))
+	ew.writeString(e.hint())
+	ew.writeString("\x1b[0K")                                // erase to right
+	ew.writeString(fmt.Sprintf("\r\x1b[%dC", e.cursorPos())) // move cursor to original position
 	return ew.err
 }
 
-func (e *Editor) width() int {
+func (e *Editor) cursorPos() int {
 	f := func(r rune) int {
+		if r == tab {
+			return 4
+		}
+
 		return 1
 	}
 
@@ -519,21 +610,27 @@ func (e *Editor) width() int {
 		f = e.Width
 	}
 
-	var w int
+	var p int
 	for _, r := range e.Prompt {
-		w += f(r)
+		p += f(r)
 	}
 	for _, r := range e.Buffer[:e.Pos] {
-		w += f(r)
+		p += f(r)
 	}
 
-	return w
+	return p % e.Cols
 }
 
+// Hint displays helpful message with styles on the right of user input.
 type Hint struct {
+	// Message is the message to be displayed.
 	Message string
-	Color   Color
-	Bold    bool
+
+	// Color is the text color of the hint.
+	Color Color
+
+	// Bold increases intensity if true.
+	Bold bool
 }
 
 func (e *Editor) hint() string {
@@ -548,7 +645,7 @@ func (e *Editor) hint() string {
 	}
 
 	if h.Color == 0 {
-		h.Color = Gray
+		h.Color = White
 	}
 
 	var b int
@@ -556,34 +653,21 @@ func (e *Editor) hint() string {
 		b = 1
 	}
 
-	if h.Color != 0 || !h.Bold {
-		return fmt.Sprintf("\x1b[%d;%d;49m%s\x1b[0m", b, h.Color, h.Message)
-	}
-
-	return h.Message
+	return fmt.Sprintf("\x1b[%d;%d;49m%s\x1b[0m", b, h.Color, h.Message)
 }
 
+// Color represents text color.
 type Color byte
 
 const (
-	Gray         = 37
-	Default      = 49
-	Black        = 40
-	Red          = 41
-	Green        = 42
-	Yellow       = 43
-	Blue         = 44
-	Magenta      = 45
-	Cyan         = 46
-	LightGray    = 47
-	DarkGray     = 100
-	LightRed     = 101
-	LightGreen   = 102
-	LightYellow  = 103
-	LightBlue    = 104
-	LightMagenta = 105
-	LightCyan    = 106
-	White        = 107
+	Black Color = 30 + iota
+	Red
+	Green
+	Yellow
+	Blue
+	Magenta
+	Cyan
+	White
 )
 
 // https://blog.golang.org/errors-are-values
@@ -592,7 +676,7 @@ type errWriter struct {
 	err error
 }
 
-func (ew *errWriter) WriteString(s string) {
+func (ew *errWriter) writeString(s string) {
 	if ew.err != nil {
 		return
 	}

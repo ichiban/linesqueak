@@ -4,9 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/ichiban/linesqueak"
 	"io"
 	"testing"
+
+	"github.com/ichiban/linesqueak"
 )
 
 func TestEditor_LineEnter(t *testing.T) {
@@ -669,7 +670,7 @@ func TestEditor_LineTabNoCompleteFunc(t *testing.T) {
 			"\r> f\x1b[0K\r\x1b[3C",
 			"\r> fo\x1b[0K\r\x1b[4C",
 			"\r> foo\x1b[0K\r\x1b[5C",
-			"\r> foo\t\x1b[0K\r\x1b[6C",
+			"\r> foo\t\x1b[0K\r\x1b[9C",
 		},
 	}
 
