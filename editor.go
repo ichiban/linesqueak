@@ -57,6 +57,12 @@ type Editor struct {
 	// Width is OPTIONAL. By default,
 	// it calculates the character width as 1 for all characters except tab which width is 4.
 	Width func(rune) int
+
+	// OldPos points the previous cursor position in Buffer.
+	OldPos int
+
+	// MaxRows is the height of editor status on the terminal.
+	MaxRows int
 }
 
 // Line reads user key strokes and returns a confirmed input line while displaying editor states on the terminal.
@@ -284,7 +290,9 @@ func (e *Editor) editReset() error {
 		e.History.Value = ""
 	}
 	e.Buffer = []rune{}
+	e.OldPos = 0
 	e.Pos = 0
+	e.MaxRows = 0
 
 	if e.Rows == 0 {
 		e.Rows = 24
@@ -564,13 +572,98 @@ func (e *Editor) beep() error {
 }
 
 func (e *Editor) refreshLine() error {
-	if err := e.refreshSingleLine(); err != nil {
-		return err
+	h := e.hint()
+
+	f := defaultWidth
+	if e.Width != nil {
+		f = e.Width
 	}
-	if err := e.Out.Flush(); err != nil {
-		return err
+
+	var pw int
+	for _, r := range e.Prompt {
+		pw += f(r)
 	}
-	return nil
+
+	var bw, cw, ocw int
+	for i, r := range e.Buffer {
+		if i < e.Pos {
+			cw += f(r)
+		}
+		if i < e.OldPos {
+			ocw += f(r)
+		}
+		bw += f(r)
+	}
+
+	var hw int
+	for _, r := range h {
+		hw += f(r)
+	}
+
+	ep := pos{
+		cols: (pw + bw + hw) % e.Cols,
+		rows: (pw + bw + hw) / e.Cols,
+	}
+
+	cp := pos{
+		cols: (pw + cw) % e.Cols,
+		rows: (pw + cw) / e.Cols,
+	}
+
+	ocp := pos{
+		cols: (pw + ocw) % e.Cols,
+		rows: (pw + ocw) / e.Cols,
+	}
+
+	ew := &errWriter{w: e.Out}
+
+	oldRows := e.MaxRows
+	if ep.rows > e.MaxRows {
+		e.MaxRows = ep.rows
+	}
+
+	// go to the bottom of editor region
+	if oldRows - ocp.rows > 0 {
+		ew.writeString(fmt.Sprintf("\x1b[%dB", oldRows - ocp.rows))
+	}
+
+	for i := 1; i < oldRows; i++ {
+		ew.writeString("\x1b[2K") // kill line
+		ew.writeString("\x1b[1A") // go up
+	}
+
+	ew.writeString("\r")
+	ew.writeString(e.Prompt)
+	ew.writeString(string(e.Buffer))
+	ew.writeString(h)
+	ew.writeString("\x1b[0K")
+
+	// If we are at the right edge,
+	// move cursor to the beginning of next line.
+	if e.Pos == len(e.Buffer) && cp.cols == 0 {
+		ew.writeString("\n\r")
+		cp.rows++
+		ep.rows++
+		if ep.rows > e.MaxRows {
+			e.MaxRows = ep.rows
+		}
+	}
+
+	// Go up till we reach the expected position.
+	if ep.rows - cp.rows > 0 {
+		ew.writeString(fmt.Sprintf("\x1b[%dA", ep.rows - cp.rows))
+	}
+
+	ew.writeString("\r")
+	if cp.cols > 0 {
+		ew.writeString(fmt.Sprintf("\x1b[%dC", cp.cols))
+	}
+
+	ew.flush()
+
+	e.OldPos = e.Pos
+
+	return ew.err
 }
 
 func (e *Editor) refreshLineString(s string) error {
@@ -586,39 +679,12 @@ func (e *Editor) refreshLineString(s string) error {
 	return nil
 }
 
-func (e *Editor) refreshSingleLine() error {
-	ew := &errWriter{w: e.Out}
-	ew.writeString("\r") // cursor to left edge
-	ew.writeString(e.Prompt)
-	ew.writeString(string(e.Buffer))
-	ew.writeString(e.hint())
-	ew.writeString("\x1b[0K")                                // erase to right
-	ew.writeString(fmt.Sprintf("\r\x1b[%dC", e.cursorPos())) // move cursor to original position
-	return ew.err
-}
-
-func (e *Editor) cursorPos() int {
-	f := func(r rune) int {
-		if r == tab {
-			return 4
-		}
-
-		return 1
+func defaultWidth(r rune) int {
+	if r == tab {
+		return 4
 	}
 
-	if e.Width != nil {
-		f = e.Width
-	}
-
-	var p int
-	for _, r := range e.Prompt {
-		p += f(r)
-	}
-	for _, r := range e.Buffer[:e.Pos] {
-		p += f(r)
-	}
-
-	return p % e.Cols
+	return 1
 }
 
 // Hint displays helpful message with styles on the right of user input.
@@ -681,4 +747,15 @@ func (ew *errWriter) writeString(s string) {
 		return
 	}
 	_, ew.err = ew.w.WriteString(s)
+}
+
+func (ew *errWriter) flush() {
+	if ew.err != nil {
+		return
+	}
+	ew.err = ew.w.Flush()
+}
+
+type pos struct {
+	cols, rows int
 }
