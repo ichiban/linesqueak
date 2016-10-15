@@ -109,8 +109,11 @@ func handleChannel(c ssh.NewChannel) {
 				e.Cols = w
 				req.Reply(true, nil)
 			case "shell":
-				if linesqueak.SupportedTerm(string(req.Payload)) {
-					req.Reply(true, nil)
+				term := string(req.Payload)
+				for _, t := range linesqueak.SupportedTerms {
+					if t == term {
+						req.Reply(true, nil)
+					}
 				}
 			case "exec":
 				log.Printf("exec: %s", req.Payload)

@@ -539,16 +539,8 @@ const (
 	backspace = 127
 )
 
-// SupportedTerm returns false if the given terminal name is in the list of terminals we don't support.
-// Otherwise returns true.
-func SupportedTerm(term string) bool {
-	for _, t := range []string{"dumb", "cons25", "emacs"} {
-		if t == term {
-			return false
-		}
-	}
-	return true
-}
+// SupportedTerms is a list of supported terminals.
+var SupportedTerms = []string{"dumb", "cons25", "emacs"}
 
 func (e *Editor) clearScreen() error {
 	n, err := e.Out.WriteString("\x1b[H\x1b[2J")
