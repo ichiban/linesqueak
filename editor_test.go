@@ -801,6 +801,32 @@ func TestEditor_LineHint(t *testing.T) {
 	}
 }
 
+func TestEditor_Adjust(t *testing.T) {
+	in := bytes.NewBuffer([]byte("\x1b[100;200R"))
+	out := &checkedWriter{
+		expectations: []string{
+			"\x1b7\x1b[999;999H\x1b[6n",
+		},
+	}
+
+	e := &linesqueak.Editor{
+		In:     bufio.NewReader(in),
+		Out:    bufio.NewWriter(out),
+		Prompt: "> ",
+	}
+
+	err := e.Adjust()
+	if err != nil {
+		t.Error(err)
+	}
+	if e.Rows != 100 {
+		t.Errorf("expected e.Rows to be 100 got %d", e.Rows)
+	}
+	if e.Cols != 200 {
+		t.Errorf("expected e.Cols to be 200 got %d", e.Cols)
+	}
+}
+
 type checkedWriter struct {
 	expectations []string
 	pos          int

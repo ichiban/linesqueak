@@ -117,6 +117,10 @@ func handleChannel(c ssh.NewChannel) {
 				}
 			case "exec":
 				log.Printf("exec: %s", req.Payload)
+			case "window-change":
+				w, h := parseDims(req.Payload)
+				e.Rows = h
+				e.Cols = w
 			default:
 				log.Printf("unknown req type: %s", req.Type)
 			}
@@ -133,6 +137,12 @@ func handleChannel(c ssh.NewChannel) {
 		fmt.Fprintf(e.Out, "\ryou have typed: %s\n", line)
 
 		e.HistoryAdd(line)
+
+		if line == "adjust" {
+			log.Printf("adjusting: (%d, %d)\n", e.Cols, e.Rows)
+			e.Adjust()
+			log.Printf("adjusted: (%d, %d)\n", e.Cols, e.Rows)
+		}
 	}
 }
 

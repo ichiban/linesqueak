@@ -246,10 +246,10 @@ func (e *Editor) HistoryAdd(l string) {
 	e.History.Prev().Link(r)
 }
 
-var dimPattern = regexp.MustCompile("\x1b\\[(\\d+);(\\d+)R")
+var curPosPattern = regexp.MustCompile("\x1b\\[(\\d+);(\\d+)R")
 
-// AdjustDimensions queries the terminal about rows and cols and updates Editor's Rows and Cols.
-func (e *Editor) AdjustDimensions() error {
+// Adjust queries the terminal about rows and cols and updates Editor's Rows and Cols.
+func (e *Editor) Adjust() error {
 	// https://groups.google.com/forum/#!topic/comp.os.vms/bDKSY6nG13k
 	if _, err := e.Out.WriteString("\x1b7\x1b[999;999H\x1b[6n"); err != nil {
 		return err
@@ -264,7 +264,7 @@ func (e *Editor) AdjustDimensions() error {
 		return err
 	}
 
-	ms := dimPattern.FindStringSubmatch(res)
+	ms := curPosPattern.FindStringSubmatch(res)
 	r, err := strconv.Atoi(ms[1])
 	if err != nil {
 		return err
