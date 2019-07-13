@@ -41,7 +41,7 @@ type Editor struct {
 
 	// History holds previous input lines so that user can reuse or tweak it later.
 	// It is your task to add lines to History, save History, or load it from disks.
-	History *ring.Ring
+	History History
 
 	// Complete will be called when user wants you to complete their inputs.
 	// It takes the current user input and returns some completion suggestions.
@@ -229,23 +229,6 @@ line:
 	return string(e.Buffer), nil
 }
 
-// HistoryAdd adds a line to History.
-func (e *Editor) HistoryAdd(l string) {
-	if e.History == nil {
-		e.History = ring.New(1)
-		e.History.Value = ""
-	}
-
-	// Don't add duplicate lines
-	if e.History.Value.(string) == l {
-		return
-	}
-
-	r := ring.New(1)
-	r.Value = l
-	e.History.Prev().Link(r)
-}
-
 var curPosPattern = regexp.MustCompile("\x1b\\[(\\d+);(\\d+)R")
 
 // Adjust queries the terminal about rows and cols and updates Editor's Rows and Cols.
@@ -306,10 +289,6 @@ func (e *Editor) editReset() error {
 }
 
 func (e *Editor) init() {
-	if e.History.Len() == 0 {
-		e.History = ring.New(1)
-		e.History.Value = ""
-	}
 	if e.Rows == 0 {
 		e.Rows = 24
 	}
@@ -382,25 +361,20 @@ func (e *Editor) editMoveRight() error {
 }
 
 func (e *Editor) editHistoryPrev() error {
-	if e.History.Len() == 0 {
+	e.History.Save(string(e.Buffer))
+	if err := e.History.Prev(); err != nil {
 		return e.beep()
 	}
-
-	e.History.Value = string(e.Buffer)
-	e.History = e.History.Prev()
-	e.Buffer = []rune(e.History.Value.(string))
+	e.Buffer = []rune(e.History.Get())
 	e.Pos = len(e.Buffer)
 	return e.refreshLine()
 }
 
 func (e *Editor) editHistoryNext() error {
-	if e.History.Len() == 0 {
+	if err := e.History.Next(); err != nil {
 		return e.beep()
 	}
-
-	e.History.Value = string(e.Buffer)
-	e.History = e.History.Next()
-	e.Buffer = []rune(e.History.Value.(string))
+	e.Buffer = []rune(e.History.Get())
 	e.Pos = len(e.Buffer)
 	return e.refreshLine()
 }
@@ -756,4 +730,48 @@ func (ew *errWriter) flush() {
 
 type pos struct {
 	cols, rows int
+}
+
+type History struct {
+	Lines []string
+	Pos   int
+}
+
+func (h *History) Add(l string) {
+	if len(h.Lines) == 0 {
+		h.Lines = []string{""}
+	}
+	h.Lines[len(h.Lines)-1] = l
+	h.Lines = append(h.Lines, "")
+	h.Pos = len(h.Lines)-1
+}
+
+func (h *History) Next() error {
+	if h.Pos >= len(h.Lines)-1 {
+		return errors.New("end of history")
+	}
+	h.Pos++
+	return nil
+}
+
+func (h *History) Prev() error {
+	if h.Pos <= 0 {
+		return errors.New("beginning of history")
+	}
+	h.Pos--
+	return nil
+}
+
+func (h *History) Get() string {
+	return h.Lines[h.Pos]
+}
+
+func (h *History) Save(l string) {
+	if len(h.Lines) == 0 {
+		h.Lines = []string{""}
+	}
+	if h.Pos != len(h.Lines)-1 {
+		return
+	}
+	h.Lines[len(h.Lines)-1] = l
 }

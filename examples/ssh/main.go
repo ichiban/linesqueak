@@ -136,7 +136,7 @@ func handleChannel(c ssh.NewChannel) {
 		log.Printf("line: %s\n", line)
 		fmt.Fprintf(e.Out, "\ryou have typed: %s\n", line)
 
-		e.HistoryAdd(line)
+		e.History.Add(line)
 
 		if line == "adjust" {
 			log.Printf("adjusting: (%d, %d)\n", e.Cols, e.Rows)

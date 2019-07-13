@@ -277,15 +277,15 @@ func TestEditor_LineCtrlPCtrlN(t *testing.T) {
 	out := &checkedWriter{
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
-			"\r> \x1b[0K\r\x1b[2C",
+			"\a",
 			"\r> f\x1b[0K\r\x1b[3C",
 			"\r> fo\x1b[0K\r\x1b[4C",
 			"\r> foo\x1b[0K\r\x1b[5C",
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> foo\x1b[0K\r\x1b[5C",
+			"\a",
 			"\r> \x1b[0K\r\x1b[2C",
-			"\r> foo\x1b[0K\r\x1b[5C",
-			"\r> \x1b[0K\r\x1b[2C",
+			"\a",
 			"\r> b\x1b[0K\r\x1b[3C",
 			"\r> ba\x1b[0K\r\x1b[4C",
 			"\r> bar\x1b[0K\r\x1b[5C",
@@ -306,7 +306,7 @@ func TestEditor_LineCtrlPCtrlN(t *testing.T) {
 		t.Errorf(`expected "foo" got %#v`, l)
 	}
 
-	e.HistoryAdd("foo")
+	e.History.Add("foo")
 
 	l, err = e.Line()
 	if err != nil {
@@ -512,15 +512,15 @@ func TestEditor_LineEscSquareBracketAEscSquareBracketB(t *testing.T) {
 	out := &checkedWriter{
 		expectations: []string{
 			"\r> \x1b[0K\r\x1b[2C",
-			"\r> \x1b[0K\r\x1b[2C",
+			"\a",
 			"\r> f\x1b[0K\r\x1b[3C",
 			"\r> fo\x1b[0K\r\x1b[4C",
 			"\r> foo\x1b[0K\r\x1b[5C",
 			"\r> \x1b[0K\r\x1b[2C",
 			"\r> foo\x1b[0K\r\x1b[5C",
+			"\a",
 			"\r> \x1b[0K\r\x1b[2C",
-			"\r> foo\x1b[0K\r\x1b[5C",
-			"\r> \x1b[0K\r\x1b[2C",
+			"\a",
 			"\r> b\x1b[0K\r\x1b[3C",
 			"\r> ba\x1b[0K\r\x1b[4C",
 			"\r> bar\x1b[0K\r\x1b[5C",
@@ -541,7 +541,7 @@ func TestEditor_LineEscSquareBracketAEscSquareBracketB(t *testing.T) {
 		t.Errorf(`expected "foo" got %#v`, l)
 	}
 
-	e.HistoryAdd("foo")
+	e.History.Add("foo")
 
 	l, err = e.Line()
 	if err != nil {
@@ -864,7 +864,7 @@ func (c *checkedWriter) Write(p []byte) (int, error) {
 	a := string(p)
 
 	if e != a {
-		return 0, fmt.Errorf(`expected %#v got %#v`, e, a)
+		return 0, fmt.Errorf(`expected %#v got %#v at %d`, e, a, c.pos)
 	}
 
 	c.pos++
