@@ -284,25 +284,38 @@ func (e *Editor) Adjust() error {
 	return nil
 }
 
-func (e *Editor) editReset() error {
-	if e.History.Len() == 0 {
-		e.History = ring.New(1)
-		e.History.Value = ""
+func (e *Editor) Write(b []byte) (int, error) {
+	e.init()
+	ew := errWriter{w:e.Out}
+	ew.writeString("\r\x1b[0K")
+	ew.write(b)
+	ew.flush()
+	if ew.err != nil {
+		return 0, ew.err
 	}
+	return len(b), e.refreshLine()
+}
+
+func (e *Editor) editReset() error {
+	e.init()
 	e.Buffer = []rune{}
 	e.OldPos = 0
 	e.Pos = 0
 	e.MaxRows = 0
+	return e.refreshLine()
+}
 
+func (e *Editor) init() {
+	if e.History.Len() == 0 {
+		e.History = ring.New(1)
+		e.History.Value = ""
+	}
 	if e.Rows == 0 {
 		e.Rows = 24
 	}
-
 	if e.Cols == 0 {
 		e.Cols = 80
 	}
-
-	return e.refreshLine()
 }
 
 func (e *Editor) editBackspace() error {
@@ -725,6 +738,13 @@ func (ew *errWriter) writeString(s string) {
 		return
 	}
 	_, ew.err = ew.w.WriteString(s)
+}
+
+func (ew *errWriter) write(b []byte) {
+	if ew.err != nil {
+		return
+	}
+	_, ew.err = ew.w.Write(b)
 }
 
 func (ew *errWriter) flush() {

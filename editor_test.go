@@ -827,6 +827,31 @@ func TestEditor_Adjust(t *testing.T) {
 	}
 }
 
+func TestEditor_Write(t *testing.T) {
+	in := bytes.NewBuffer(nil)
+	out := &checkedWriter{
+		expectations: []string{
+			"\r\x1b[0Kbaz\n",
+			"\r> foo bar\x1b[0K\r\x1b[2C",
+		},
+	}
+
+	e := &linesqueak.Editor{
+		In:     bufio.NewReader(in),
+		Out:    bufio.NewWriter(out),
+		Prompt: "> ",
+		Buffer: []rune("foo bar"),
+	}
+
+	n, err := e.Write([]byte("baz\n"))
+	if err != nil {
+		t.Error(err)
+	}
+	if n != 4 {
+		t.Errorf(`expected 4 got %d`, n)
+	}
+}
+
 type checkedWriter struct {
 	expectations []string
 	pos          int
