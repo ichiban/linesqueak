@@ -307,8 +307,7 @@ func (e *Editor) editReset() error {
 
 func (e *Editor) editBackspace() error {
 	if e.Pos == 0 {
-		e.beep()
-		return nil
+		return e.beep()
 	}
 
 	e.Pos--
@@ -321,8 +320,7 @@ func (e *Editor) editBackspace() error {
 
 func (e *Editor) editDelete() error {
 	if e.Pos == len(e.Buffer) {
-		e.beep()
-		return nil
+		return e.beep()
 	}
 
 	// Delete https://github.com/golang/go/wiki/SliceTricks
@@ -338,8 +336,7 @@ func (e *Editor) editSwap() error {
 	}
 
 	if p == 0 {
-		e.beep()
-		return nil
+		return e.beep()
 	}
 
 	e.Buffer[p-1], e.Buffer[p] = e.Buffer[p], e.Buffer[p-1]
@@ -353,8 +350,7 @@ func (e *Editor) editSwap() error {
 
 func (e *Editor) editMoveLeft() error {
 	if e.Pos == 0 {
-		e.beep()
-		return nil
+		return e.beep()
 	}
 
 	e.Pos--
@@ -364,8 +360,7 @@ func (e *Editor) editMoveLeft() error {
 
 func (e *Editor) editMoveRight() error {
 	if e.Pos == len(e.Buffer) {
-		e.beep()
-		return nil
+		return e.beep()
 	}
 
 	e.Pos++
@@ -375,32 +370,26 @@ func (e *Editor) editMoveRight() error {
 
 func (e *Editor) editHistoryPrev() error {
 	if e.History.Len() == 0 {
-		e.beep()
-		return nil
+		return e.beep()
 	}
 
 	e.History.Value = string(e.Buffer)
 	e.History = e.History.Prev()
 	e.Buffer = []rune(e.History.Value.(string))
 	e.Pos = len(e.Buffer)
-	e.refreshLine()
-
-	return nil
+	return e.refreshLine()
 }
 
 func (e *Editor) editHistoryNext() error {
 	if e.History.Len() == 0 {
-		e.beep()
-		return nil
+		return e.beep()
 	}
 
 	e.History.Value = string(e.Buffer)
 	e.History = e.History.Next()
 	e.Buffer = []rune(e.History.Value.(string))
 	e.Pos = len(e.Buffer)
-	e.refreshLine()
-
-	return nil
+	return e.refreshLine()
 }
 
 func (e *Editor) editKillForward() error {
@@ -410,8 +399,7 @@ func (e *Editor) editKillForward() error {
 
 func (e *Editor) editMoveHome() error {
 	if e.Pos == 0 {
-		e.beep()
-		return nil
+		return e.beep()
 	}
 
 	e.Pos = 0
@@ -420,8 +408,7 @@ func (e *Editor) editMoveHome() error {
 
 func (e *Editor) editMoveEnd() error {
 	if e.Pos == len(e.Buffer) {
-		e.beep()
-		return nil
+		return e.beep()
 	}
 
 	e.Pos = len(e.Buffer)
@@ -468,8 +455,7 @@ func (e *Editor) completeLine() error {
 	opts := e.Complete(string(e.Buffer))
 
 	if len(opts) == 0 {
-		e.beep()
-		return nil
+		return e.beep()
 	}
 
 	cs := ring.New(len(opts) + 1)
