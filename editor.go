@@ -3,7 +3,6 @@ package linesqueak
 
 import (
 	"bufio"
-	"container/ring"
 	"errors"
 	"fmt"
 	"io"
@@ -444,18 +443,13 @@ func (e *Editor) completeLine() error {
 	if len(opts) == 0 {
 		return e.beep()
 	}
+	opts = append(opts, string(e.Buffer))
 
-	cs := ring.New(len(opts) + 1)
-	for _, o := range opts {
-		cs.Value = o
-		cs = cs.Next()
-	}
-	cs.Value = string(e.Buffer)
-	cs = cs.Next()
+	pos := 0
 
 complete:
 	for {
-		c := cs.Value.(string)
+		c := opts[pos]
 
 		if err := e.refreshLineString(c); err != nil {
 			return err
@@ -471,7 +465,7 @@ complete:
 			if _, _, err := e.In.ReadRune(); err != nil {
 				return err
 			}
-			cs = cs.Next()
+			pos = (pos + len(opts) + 1) % len(opts)
 		case esc:
 			if _, _, err := e.In.ReadRune(); err != nil {
 				return err
