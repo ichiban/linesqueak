@@ -3,6 +3,7 @@ package linesqueak
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -270,7 +271,7 @@ func (e *Editor) Write(b []byte) (int, error) {
 	e.init()
 	ew := errWriter{w:e.Out}
 	ew.writeString("\r\x1b[0K")
-	ew.write(b)
+	ew.write(bytes.Replace(b, []byte("\n"), []byte("\r\n"), -1))
 	ew.flush()
 	if ew.err != nil {
 		return 0, ew.err

@@ -831,7 +831,7 @@ func TestEditor_Write(t *testing.T) {
 	in := bytes.NewBuffer(nil)
 	out := &checkedWriter{
 		expectations: []string{
-			"\r\x1b[0Kbaz\n",
+			"\r\x1b[0Kbaz\r\n",
 			"\r> foo bar\x1b[0K\r\x1b[2C",
 		},
 	}
